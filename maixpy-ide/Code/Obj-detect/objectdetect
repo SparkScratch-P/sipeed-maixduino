@@ -1,0 +1,51 @@
+import sensor, image, lcd, time
+import KPU as kpu
+
+# Initialize LCD and camera
+lcd.init(freq=15000000)
+sensor.reset()
+sensor.set_pixformat(sensor.RGB565)
+sensor.set_framesize(sensor.QVGA)  # 320x240
+sensor.run(1)
+
+# Initialize clock for FPS tracking
+clock = time.clock()
+
+# Define object classes (PASCAL VOC 20 classes)
+classes = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow',
+           'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
+
+# Load the pre-trained YOLOv2 model
+# Option 1: Load from flash memory (recommended)
+task = kpu.load(0x500000)
+# Option 2: Load from SD card (uncomment if using SD)
+# task = kpu.load("/sd/20object.kmodel")
+
+# YOLOv2 anchor parameters (fixed for this model)
+anchor = (1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52)
+
+# Initialize YOLOv2 model
+a = kpu.init_yolo2(task, 0.5, 0.3, 5, anchor)  # threshold=0.5, nms=0.3
+
+# Main detection loop
+while(True):
+    clock.tick()
+    img = sensor.snapshot()
+    code = kpu.run_yolo2(task, img)
+
+    if code:
+        for i in code:
+            # Draw bounding box
+            a = img.draw_rectangle(i.rect(), color=(255, 0, 0))
+            # Draw label and confidence
+            lcd.draw_string(i.x(), i.y(), classes[i.classid()], lcd.RED, lcd.WHITE)
+            lcd.draw_string(i.x(), i.y()+12, '%.3f' % i.value(), lcd.RED, lcd.WHITE)
+    else:
+        # Display image if no objects detected
+        a = lcd.display(img)
+    # Print FPS
+    print(clock.fps())
+
+# Deinitialize model (cleanup)
+a = kpu.deinit(task)
+
